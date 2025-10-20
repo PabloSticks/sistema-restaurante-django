@@ -1,4 +1,6 @@
+from django.utils import timezone
 from django.db import models
+from django.contrib.auth.models import User
 
 class Mesa(models.Model):
     ESTADO_CHOICES = [
@@ -93,3 +95,30 @@ class PedidoDetalle(models.Model):
     class Meta:
         verbose_name = "Detalle de Pedido"
         verbose_name_plural = "Detalles de Pedidos"
+
+class Turno(models.Model):
+    ESTADO_CHOICES = [
+        ('abierto', 'Abierto'),
+        ('cerrado', 'Cerrado'),
+    ]
+
+    fecha_inicio = models.DateTimeField(default=timezone.now, verbose_name="Fecha y Hora de Inicio")
+    fecha_fin = models.DateTimeField(null=True, blank=True, verbose_name="Fecha y Hora de Fin")
+    abierto_por = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='turnos_abiertos',
+        verbose_name="Abierto por (Gerente)",
+        limit_choices_to={'groups__name': 'Gerente'}
+    )
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='abierto', verbose_name="Estado")
+
+    def __str__(self):
+        inicio_fmt = self.fecha_inicio.strftime('%d/%m/%Y %H:%M')
+        fin_str = f" - Fin: {self.fecha_fin.strftime('%d/%m/%Y %H:%M')}" if self.fecha_fin else ""
+        return f"Turno {self.id} ({self.estado}) | Inicio: {inicio_fmt}{fin_str} | Por: {self.abierto_por.username}"
+
+    class Meta:
+        verbose_name = "Turno"
+        verbose_name_plural = "Turnos"
+        ordering = ['-fecha_inicio']

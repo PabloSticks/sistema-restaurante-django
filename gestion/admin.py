@@ -1,9 +1,22 @@
 from django.contrib import admin
-from .models import Mesa, Categoria, Producto, Pedido, PedidoDetalle
+from .models import Mesa, Categoria, Producto, Pedido, PedidoDetalle, Turno
+from django.utils import timezone 
 
-# Registramos los modelos que no necesitan personalización especial
 admin.site.register(Mesa)
 admin.site.register(Producto)
+
+@admin.register(Turno)
+class TurnoAdmin(admin.ModelAdmin):
+    list_display = ('id', 'fecha_inicio', 'fecha_fin', 'abierto_por', 'estado')
+    list_filter = ('estado', 'abierto_por')
+    readonly_fields = ('fecha_inicio',) # Hacemos fecha_inicio de solo lectura
+
+    # Acción para cerrar turnos
+    def cerrar_turnos(self, request, queryset):
+        queryset.update(estado='cerrado', fecha_fin=timezone.now())
+    cerrar_turnos.short_description = "Cerrar turnos seleccionados"
+    actions = [cerrar_turnos]
+
 
 # Usamos el decorador para personalizar la vista de Categoria
 @admin.register(Categoria)
