@@ -1,52 +1,45 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-// Asegúrate que la ruta a api.js sea correcta
-import { fetchAPI, checkAuth } from '../utils/api.js';
+import { fetchAPI, checkAuth, API_BASE_URL } from '../utils/api.js';
 
 function Mesa() {
-  // 1. Proteger y obtener datos iniciales
-  try {
-    checkAuth();
-  } catch (error) { return null; } // Si checkAuth redirige, no renderizar nada
+  try { checkAuth(); } catch (error) { return null; }
 
-  const { id: mesaId } = useParams(); // Obtiene el 'id' de la URL
-  const navigate = useNavigate(); // Hook para navegar
+  const { id: mesaId } = useParams();
+  const navigate = useNavigate();
 
-  // 2. Estados del componente
   const [mesaNumero, setMesaNumero] = useState(null);
-  const [mesaData, setMesaData] = useState(null); // Datos completos de la mesa
-  const [menu, setMenu] = useState([]); // Menú completo (categorías y productos)
-  const [pedidosAnterioresAgrupados, setPedidosAnterioresAgrupados] = useState([]); // Items ya pedidos, agrupados
-  const [carrito, setCarrito] = useState([]); // Items del nuevo pedido a enviar
-  const [error, setError] = useState(''); // Mensajes de error para el usuario
-  const [isLoading, setIsLoading] = useState(true); // Estado de carga inicial
-  const [isActionLoading, setIsActionLoading] = useState(false); // Estado de carga para acciones (enviar, entregar, etc.)
-  const [showPagoModal, setShowPagoModal] = useState(false); // Visibilidad del modal
-  const [totalAPagar, setTotalAPagar] = useState(0); // Total para el modal
-  const [puedeCobrar, setPuedeCobrar] = useState(false); // Habilita/deshabilita botón cobrar
+  const [mesaData, setMesaData] = useState(null);
+  const [menu, setMenu] = useState([]);
+  const [pedidosAnterioresAgrupados, setPedidosAnterioresAgrupados] = useState([]);
+  const [carrito, setCarrito] = useState([]);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [showPagoModal, setShowPagoModal] = useState(false);
+  const [totalAPagar, setTotalAPagar] = useState(0);
+  const [puedeCobrar, setPuedeCobrar] = useState(false);
 
-  // --- 3. FUNCIÓN PRINCIPAL PARA CARGAR DATOS (con useCallback para optimizar) ---
+  // --- FUNCIÓN PRINCIPAL PARA CARGAR DATOS ---
   const cargarVistaMesa = useCallback(async () => {
-    if (!mesaId) { navigate('/salon'); return; } // Seguridad extra
-    if (!isLoading) setIsLoading(true); // Indica carga si no es la inicial
-    setError(''); // Limpia errores previos
-    setPuedeCobrar(false); // Asume que no se puede cobrar hasta verificar
+    if (!mesaId) { navigate('/salon'); return; }
+    if (!isLoading) setIsLoading(true);
+    setError('');
+    setPuedeCobrar(false);
     console.log(`Mesa ${mesaId}: Iniciando carga/refresco de datos...`);
     try {
-      // Pide datos de la mesa y categorías en paralelo
       const [dataMesa, categorias] = await Promise.all([
         fetchAPI(`/api/mesas/${mesaId}/`),
         fetchAPI('/api/categorias/')
       ]);
       console.log(`Mesa ${mesaId}: Datos recibidos`, { dataMesa, categorias });
 
-      setMesaData(dataMesa); // Guarda datos completos
-      setMesaNumero(dataMesa.numero); // Guarda número para mostrar
+      setMesaData(dataMesa);
+      setMesaNumero(dataMesa.numero);
 
-      // --- Procesar y Agrupar Pedidos Anteriores ---
-      const itemsMap = new Map(); // Mapa para agrupar ítems por producto
-      let todosItemsEntregados = true; // Flag para saber si se puede cobrar
-      let hayPedidosActivos = false; // Flag para saber si hay algo pendiente
+      const itemsMap = new Map();
+      let todosItemsEntregados = true;
+      let hayPedidosActivos = false;
 
       if (dataMesa.pedidos && dataMesa.pedidos.length > 0) {
         dataMesa.pedidos.forEach(pedido => {
@@ -59,9 +52,8 @@ function Mesa() {
                   return;
                 }
                 if (detalle.estado !== 'entregado') {
-                  todosItemsEntregados = false; // Si uno no está entregado, no se puede cobrar
+                  todosItemsEntregados = false;
                 }
-                // Agrupa por productoId
                 const productoId = detalle.producto.id;
                 const existingItem = itemsMap.get(productoId);
                 if (existingItem) {
@@ -73,7 +65,6 @@ function Mesa() {
                     nombre: detalle.producto.nombre,
                     cantidadTotal: detalle.cantidad,
                     estacion: detalle.producto.estacion,
-                    // Guarda todos los detalles originales para este producto
                     detallesOriginales: [{ id: detalle.id, cantidad: detalle.cantidad, estado: detalle.estado }]
                   });
                 }
@@ -84,24 +75,59 @@ function Mesa() {
       }
       setPedidosAnterioresAgrupados(Array.from(itemsMap.values()));
       setMenu(categorias);
-      // setCarrito([]); // No limpiamos el carrito aquí si el usuario estaba añadiendo algo
-
-      // Habilita cobrar SOLO si hay pedidos activos Y todos están entregados
       setPuedeCobrar(hayPedidosActivos && todosItemsEntregados);
-      console.log(`Mesa ${mesaId}: Carga completada. Puede cobrar: ${puedeCobrar}`);
+      console.log(`Mesa ${mesaId}: Carga completada. Puede cobrar: ${hayPedidosActivos && todosItemsEntregados}`);
 
     } catch (err) {
       setError(`Error al cargar datos: ${err.message}`);
       console.error(`Mesa ${mesaId}: Error fetching data:`, err);
     } finally {
-      setIsLoading(false); // Termina carga inicial
+      setIsLoading(false);
     }
-  }, [mesaId, navigate]); // Dependencias
+  }, [mesaId, navigate]);
 
-  // useEffect para llamar a cargarVistaMesa al montar o si cambia mesaId
+  // --- useEffect PARA CARGA INICIAL Y SSE ---
   useEffect(() => {
     cargarVistaMesa();
-  }, [cargarVistaMesa]); // Depende de la función memoizada
+
+    // Configurar SSE para escuchar eventos de esta mesa específica
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+        console.error("Mesa SSE: No hay token para EventSource.");
+        setError("Error de autenticación para notificaciones.");
+        return;
+    }
+
+    const channel = `mesa-${mesaId}`;
+    const eventSourceUrl = `${API_BASE_URL}/api/events/?channel=${channel}&_sse_token=${token}`;
+    console.log(`Mesa ${mesaId} SSE: Conectando a`, eventSourceUrl);
+
+    const sse = new EventSource(eventSourceUrl);
+
+    // Escuchar evento 'item_listo' enviado desde el backend
+    sse.addEventListener('item_listo', (event) => {
+        console.log(`¡SSE RECIBIDO en Mesa ${mesaId}: item_listo!`, event.data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log(`Producto listo: ${data.producto_nombre} (detalle ${data.detalle_id})`);
+            // Recargar datos para mostrar el botón "Entregar"
+            cargarVistaMesa();
+        } catch (e) {
+            console.error('Error parseando evento item_listo:', e);
+        }
+    });
+
+    sse.onerror = (err) => {
+        console.error(`Error de EventSource (SSE) en Mesa ${mesaId}:`, err);
+        setError('Error de conexión en tiempo real.');
+        sse.close();
+    };
+
+    return () => {
+        console.log(`Mesa ${mesaId} SSE: Desmontando componente, cerrando conexión EventSource.`);
+        sse.close();
+    };
+  }, [mesaId, cargarVistaMesa]);
 
   // --- Funciones Carrito ---
   const handleAddToCart = (producto) => {
@@ -128,9 +154,8 @@ function Mesa() {
   // --- Funciones Acciones ---
   const handleEntregarItem = async (itemAgrupado) => {
       setError('');
-      setIsActionLoading(true); // Indica que una acción está en progreso
+      setIsActionLoading(true);
       console.log(`Mesa ${mesaId}: Entregando item(s)`, itemAgrupado);
-      // Filtra IDs de detalles originales listos para entregar
       const detallesAEntregarIds = itemAgrupado.detallesOriginales
           .filter(d => (itemAgrupado.estacion === 'bar' && d.estado === 'recibido') || d.estado === 'listo')
           .map(d => d.id);
@@ -141,20 +166,19 @@ function Mesa() {
           return;
       }
       console.log(`Mesa ${mesaId}: IDs a marcar como entregados:`, detallesAEntregarIds);
-      // Crea promesas para actualizar cada detalle
       const updatePromises = detallesAEntregarIds.map(detalleId =>
           fetchAPI(`/api/detalles-pedido/${detalleId}/`, { method: 'PATCH', body: JSON.stringify({ estado: 'entregado' }) })
       );
       try {
-          await Promise.all(updatePromises); // Espera que todas terminen
+          await Promise.all(updatePromises);
           console.log(`Mesa ${mesaId}: Item(s) ${itemAgrupado.nombre} entregado(s).`);
-          cargarVistaMesa(); // Recarga para ver cambios y re-evaluar 'puedeCobrar'
+          cargarVistaMesa();
       } catch (err) {
          setError(err.message);
          alert(`No se pudo marcar como entregado: ${err.message}`);
          console.error(`Mesa ${mesaId}: Error al entregar:`, err);
       } finally {
-          setIsActionLoading(false); // Termina acción
+          setIsActionLoading(false);
       }
   };
 
@@ -165,20 +189,20 @@ function Mesa() {
       detalles: carrito.map(item => ({ producto: item.productoId, cantidad: item.cantidad, nota: '' }))
     };
     setError('');
-    setIsActionLoading(true); // Indica acción en progreso
+    setIsActionLoading(true);
     console.log(`Mesa ${mesaId}: Enviando nuevo pedido...`, pedidoData);
     try {
       await fetchAPI('/api/pedidos/', { method: 'POST', body: JSON.stringify(pedidoData) });
       alert('¡Nuevos ítems enviados!');
       console.log(`Mesa ${mesaId}: Nuevo pedido enviado.`);
-      setCarrito([]); // Limpia el carrito después de enviar
-      cargarVistaMesa(); // Recarga para ver cambios y re-evaluar cobro
+      setCarrito([]);
+      cargarVistaMesa();
     } catch (err) {
       setError(err.message);
       alert(`Error al enviar pedido: ${err.message}`);
       console.error(`Mesa ${mesaId}: Error al enviar:`, err);
     } finally {
-        setIsActionLoading(false); // Termina acción
+        setIsActionLoading(false);
     }
   };
 
@@ -186,31 +210,29 @@ function Mesa() {
   const handleAbrirModalPago = async () => {
      setError('');
      console.log(`Mesa ${mesaId}: Abriendo modal de pago...`);
-     // Podríamos añadir un estado de carga aquí también si calcular_total tarda
     try {
         const data = await fetchAPI(`/api/mesas/${mesaId}/calcular_total/`);
         console.log(`Mesa ${mesaId}: Total calculado:`, data.total);
         setTotalAPagar(parseFloat(data.total).toFixed(0));
-        setShowPagoModal(true); // Muestra el modal
+        setShowPagoModal(true);
     } catch (err) {
-        setError(err.message); // Muestra error (ej: items pendientes)
+        setError(err.message);
         alert('No se puede cobrar: ' + err.message);
         console.error(`Mesa ${mesaId}: Error al calcular total:`, err);
     }
   };
 
   const handleCerrarModalPago = () => {
-      if (isActionLoading) return; // Evita cerrar si se está procesando el pago
+      if (isActionLoading) return;
       console.log(`Mesa ${mesaId}: Cerrando modal de pago.`);
       setShowPagoModal(false);
   }
 
   const handleFinalizarMesa = async () => {
     setError('');
-    setIsActionLoading(true); // Indica acción en progreso
+    setIsActionLoading(true);
     console.log(`Mesa ${mesaId}: Intentando finalizar mesa...`);
     try {
-        // Marca pedidos activos como 'pagado'
         if (mesaData && mesaData.pedidos) {
             const updatePromises = mesaData.pedidos
                 .filter(pedido => pedido.estado !== 'pagado')
@@ -221,23 +243,22 @@ function Mesa() {
             await Promise.all(updatePromises);
             console.log(`Mesa ${mesaId}: Pedidos marcados como pagados.`);
         }
-        // Libera la mesa
         console.log(`Mesa ${mesaId}: Liberando mesa...`);
         await fetchAPI(`/api/mesas/${mesaId}/`, { method: 'PATCH', body: JSON.stringify({ estado: 'disponible' }) });
         alert('Mesa finalizada.');
         console.log(`Mesa ${mesaId}: Mesa liberada. Navegando a /salon.`);
-        navigate('/salon'); // Vuelve al salón
+        navigate('/salon');
     } catch (err) {
         setError(err.message);
         console.error(`Mesa ${mesaId}: Error al finalizar mesa:`, err);
         alert(`No se pudo finalizar la mesa: ${err.message}`);
     } finally {
-        setIsActionLoading(false); // Termina acción
-        setShowPagoModal(false); // Cierra modal siempre
+        setIsActionLoading(false);
+        setShowPagoModal(false);
     }
   };
 
-  // --- Renderizado del Componente ---
+  // --- Renderizado ---
   if (isLoading) return <div className="container"><p>Cargando datos de la mesa...</p></div>;
 
   if (error && !mesaNumero) return (
@@ -248,7 +269,7 @@ function Mesa() {
   );
 
   return (
-    <div> {/* Container principal lo pone App.jsx? */}
+    <div>
       <div id="toma-pedido-view">
         <div className="header">
           <h2>Gestionar Mesa #{mesaNumero || mesaId}</h2>
@@ -263,7 +284,6 @@ function Mesa() {
         {error && <p className="error-message" style={{textAlign: 'center'}}>{error}</p>}
 
         <div className="pedido-layout">
-          {/* Columna Menú */}
           <div id="menu-container">
             <h3>Menú</h3>
             {Array.isArray(menu) && menu.map(categoria => (
@@ -279,7 +299,6 @@ function Mesa() {
             ))}
           </div>
 
-          {/* Columna Pedidos Servidos */}
           <div id="pedidos-anteriores-container">
             <h3>Pedidos Servidos</h3>
             <ul id="pedidos-anteriores-lista">
@@ -289,7 +308,6 @@ function Mesa() {
                 pedidosAnterioresAgrupados.map(item => {
                   let displayEstado = 'entregado';
                   let puedeEntregar = false;
-                  let detallesListos = []; // IDs de detalles listos para entregar
 
                   if (item && Array.isArray(item.detallesOriginales)) {
                       item.detallesOriginales.forEach(d => {
@@ -299,12 +317,10 @@ function Mesa() {
 
                           if ((item.estacion === 'bar' && d.estado === 'recibido') || d.estado === 'listo') {
                               puedeEntregar = true;
-                              detallesListos.push(d.id); // Guarda el ID si está listo
                           }
                       });
                   } else { displayEstado = item?.estado || 'error'; }
 
-                  // Pasamos el objeto item completo a la función de entregar
                   return (
                     <li key={`${item.productoId}-${displayEstado}`}>
                       <span>{item.cantidadTotal || '?'}x {item.nombre || '??'} ({displayEstado})</span>
@@ -318,7 +334,6 @@ function Mesa() {
             </ul>
           </div>
 
-          {/* Columna Nuevo Pedido (Carrito) */}
           <div id="carrito-container">
             <h3>Nuevo Pedido</h3>
             <ul id="carrito-lista">
@@ -340,7 +355,6 @@ function Mesa() {
         </div>
       </div>
 
-      {/* El Modal de Pago */}
       {showPagoModal && (
          <div id="pago-modal" className="modal-overlay">
             <div className="modal-content">

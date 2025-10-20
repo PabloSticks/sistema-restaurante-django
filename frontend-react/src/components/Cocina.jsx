@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { fetchAPI, checkAuth, API_BASE_URL } from '../utils/api.js';
 
 function Cocina() {
-  // checkAuth() ya no redirige, solo verifica. App.jsx maneja la protección.
-  // const isLoggedIn = checkAuth(); // No necesitamos esto si App.jsx usa Outlet
   const navigate = useNavigate();
   const [pedidosCocina, setPedidosCocina] = useState(null);
   const [error, setError] = useState('');
@@ -58,7 +56,7 @@ function Cocina() {
     if (!token) {
         console.error("Cocina SSE: No hay token para EventSource.");
         setError("Error de autenticación para notificaciones.");
-        return; // No podemos conectarnos
+        return;
     }
 
     const eventSourceUrl = `${API_BASE_URL}/api/events/?channel=cocina&_sse_token=${token}`;
@@ -66,23 +64,35 @@ function Cocina() {
 
     const sse = new EventSource(eventSourceUrl);
 
-    // 3. Escuchadores de eventos
+    // 3. Escuchadores de eventos (CON PARSEO DE JSON)
     sse.addEventListener('nuevo_item', (event) => {
         console.log('¡SSE RECIBIDO: nuevo_item!', event.data);
-        // Volvemos a cargar todo para que aparezca el nuevo pedido
-        cargarPedidosCocina(false); // false = no mostrar loader
+        try {
+            const data = JSON.parse(event.data);
+            console.log(`Nuevo pedido: ${data.producto_nombre} x${data.cantidad} - Mesa ${data.mesa_numero}`);
+            // Volvemos a cargar todo para que aparezca el nuevo pedido
+            cargarPedidosCocina(false); // false = no mostrar loader
+        } catch (e) {
+            console.error('Error parseando evento nuevo_item:', e);
+        }
     });
 
     sse.addEventListener('item_entregado', (event) => {
         console.log('¡SSE RECIBIDO: item_entregado!', event.data);
-        // Volvemos a cargar todo para que el ítem desaparezca de la lista
-        cargarPedidosCocina(false);
+        try {
+            const data = JSON.parse(event.data);
+            console.log(`Item entregado: detalle ${data.detalle_id}`);
+            // Volvemos a cargar todo para que el ítem desaparezca de la lista
+            cargarPedidosCocina(false);
+        } catch (e) {
+            console.error('Error parseando evento item_entregado:', e);
+        }
     });
 
     sse.onerror = (err) => {
         console.error('Error de EventSource (SSE):', err);
         setError('Error de conexión en tiempo real.');
-        sse.close(); // Cierra la conexión si hay un error grave
+        sse.close();
     };
 
     // 4. Limpieza al desmontar el componente
@@ -90,9 +100,9 @@ function Cocina() {
         console.log("Cocina SSE: Desmontando componente, cerrando conexión EventSource.");
         sse.close();
     };
-  }, [cargarPedidosCocina]); // La dependencia es la función memoizada
+  }, [cargarPedidosCocina]);
 
-  // --- Función para Actualizar el Estado (sin cambios) ---
+  // --- Función para Actualizar el Estado ---
   const handleActualizarEstado = async (detalleId, nuevoEstado) => {
     if (updatingItemId) return;
     setError('');
@@ -102,11 +112,7 @@ function Cocina() {
         method: 'PATCH',
         body: JSON.stringify({ estado: nuevoEstado })
       });
-      // Ya no es necesario cargarPedidosCocina() aquí,
-      // porque el backend enviará un evento 'item_listo' al canal de la MESA.
-      // PERO, sí necesitamos que DESAPAREZCA de la vista Cocina.
-      // El backend también envía 'item_entregado' o 'item_listo' a 'cocina'
-      // O podemos forzar la recarga local:
+      // El backend enviará eventos SSE automáticamente, pero recargamos por si acaso
       cargarPedidosCocina(false);
     } catch (err) {
       setError(`Error al actualizar estado: ${err.message}`);
@@ -116,14 +122,14 @@ function Cocina() {
     }
   };
 
-  // --- Función de Logout (sin cambios) ---
+  // --- Función de Logout ---
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     navigate('/login');
   };
 
-  // --- RENDERIZADO (sin cambios) ---
+  // --- RENDERIZADO ---
   if (isLoading) return <div className="container"><p>Cargando comandas...</p></div>;
 
   return (
@@ -162,7 +168,6 @@ function Cocina() {
                         Listo
                       </button>
                     )}
-                    {/* El estado 'listo' ya no se muestra aquí porque lo filtramos */}
                   </div>
                 </div>
               ))}
