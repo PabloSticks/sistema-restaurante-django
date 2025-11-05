@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from django_eventstream.urls import urlpatterns as stream_patterns
+from django_eventstream.urls import urlpatterns as stream_patterns # <-- VUELVE A INCLUIR ESTA LÍNEA
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -10,7 +10,7 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # --- LOS EVENTOS SSE ---
-    path('api/events/', include((stream_patterns, 'django_eventstream'), namespace='django_eventstream')),
+    # --- LOS EVENTOS SSE (RE-HABILITADO) ---
+    path('api/events/', include((stream_patterns, 'django_eventstream'), namespace='django_eventstream')), # <-- VUELVE A INCLUIR ESTA LÍNEA
     # -------------------------
 ]

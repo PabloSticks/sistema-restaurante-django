@@ -99,7 +99,7 @@ function Mesa() {
     }
 
     const channel = `mesa-${mesaId}`;
-    const eventSourceUrl = `${API_BASE_URL}/api/events/?channel=${channel}&_sse_token=${token}`;
+    const eventSourceUrl = `${API_BASE_URL}/api/events/?channel=${channel}&_sse_token=${token}`
     console.log(`Mesa ${mesaId} SSE: Conectando a`, eventSourceUrl);
 
     const sse = new EventSource(eventSourceUrl);

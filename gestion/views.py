@@ -14,7 +14,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 # Importa la función para enviar eventos SSE
 from django_eventstream import send_event
 
-# Importa TODOS tus modelos necesarios
+# Importa los modelos necesarios
 from .models import Mesa, Categoria, Producto, Pedido, PedidoDetalle, Turno
 
 # Importa TODOS tus serializers necesarios
@@ -26,13 +26,10 @@ from .serializers import (
     PedidoCreateSerializer,
     PedidoUpdateSerializer,
     PedidoDetalleUpdateSerializer,
-    UserSerializer # Serializer para /users/me/
-    # No es necesario importar MyTokenObtainPairSerializer aquí
+    UserSerializer 
 )
 
-# Importa tus permisos personalizados
 from .permissions import IsMeseroUser, IsCocinaUser
-
 
 # --- VISTAS PRINCIPALES DE LA API (VIEWSETS) ---
 
@@ -65,7 +62,7 @@ class MesaViewSet(viewsets.ModelViewSet):
             print(f"Intento de cobro fallido para Mesa {pk}: Items pendientes encontrados.") # Log para depuración
             return Response(
                 {'error': 'No se puede cobrar, aún hay items pendientes de entrega.'},
-                status=400 # Bad Request
+                status=400
             )
 
         # Si no hay pendientes, calcula el total
@@ -139,24 +136,22 @@ class PedidoDetalleViewSet(mixins.UpdateModelMixin, viewsets.GenericViewSet):
     """
     queryset = PedidoDetalle.objects.all()
     serializer_class = PedidoDetalleUpdateSerializer
-    # Cocina actualiza a preparacion/listo, Mesero actualiza a entregado
     permission_classes = [IsCocinaUser | IsMeseroUser]
 
-    # --- ¡LÓGICA SSE AÑADIDA! ---
-    # Sobrescribimos perform_update para enviar el evento DESPUÉS de guardar
+    # --- LÓGICA SSE ---
     def perform_update(self, serializer):
         instance = serializer.save() # Guarda el cambio (ej: estado='listo')
         print(f"Estado de detalle {instance.id} actualizado a: {instance.estado}")
 
         try:
-            # Si el nuevo estado es 'listo' (marcado por cocina)...
+            # Si el nuevo estado es 'listo' (marcado por cocina)
             if instance.estado == 'listo':
                 # Enviamos evento al canal de la mesa específica
                 channel_name = f"mesa-{instance.pedido.mesa.id}"
                 print(f"Enviando evento SSE a canal '{channel_name}': item_listo")
                 send_event(
-                    channel_name, # Canal (ej: "mesa-5")
-                    'item_listo', # Tipo de evento
+                    channel_name, 
+                    'item_listo',
                     { # Datos que enviamos al frontend (Mesa.jsx)
                         'detalle_id': instance.id,
                         'producto_nombre': instance.producto.nombre,
@@ -164,12 +159,12 @@ class PedidoDetalleViewSet(mixins.UpdateModelMixin, viewsets.GenericViewSet):
                         'nuevo_estado': instance.estado
                     }
                 )
-            # Si el nuevo estado es 'entregado' (marcado por mesero)...
+            # Si el nuevo estado es 'entregado' (marcado por mesero)
             elif instance.estado == 'entregado':
                  # Avisamos al canal de 'cocina' para que pueda limpiar su vista
                  print(f"Enviando evento SSE a canal 'cocina': item_entregado")
                  send_event(
-                     'cocina', # Canal general de cocina
+                     'cocina', 
                      'item_entregado',
                       {'detalle_id': instance.id} # Solo necesitamos el ID
                  )
@@ -179,8 +174,6 @@ class PedidoDetalleViewSet(mixins.UpdateModelMixin, viewsets.GenericViewSet):
         except Exception as e:
             # Captura cualquier otro error al enviar el evento
             print(f"ERROR: No se pudo enviar el evento SSE: {e}")
-        # ----------------------------
-
 
 # --- VISTA PARA /api/users/me/ ---
 class CurrentUserView(APIView):
@@ -188,13 +181,10 @@ class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated] # Requiere token válido
 
     def get(self, request):
-        serializer = UserSerializer(request.user) # Usa el UserSerializer
+        serializer = UserSerializer(request.user) 
         return Response(serializer.data)
 
-
 # --- VISTAS PERSONALIZADAS PARA LOGIN CON VERIFICACIÓN DE TURNO ---
-# (Estas clases ahora están al nivel correcto, fuera de PedidoDetalleViewSet)
-
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """ Serializer de login que añade la verificación de turno. """
     def validate(self, attrs):
@@ -204,9 +194,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not user.is_superuser and not user.groups.filter(name='Gerente').exists():
             if not Turno.objects.filter(estado='abierto').exists():
                 raise PermissionDenied("No hay un turno abierto. El Gerente debe iniciar uno.")
-        return data # Devuelve tokens si todo OK
+        return data 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """ Vista de login que usa el serializer con verificación de turno. """
-    # Le decimos a la vista que use nuestro serializer personalizado
     serializer_class = CustomTokenObtainPairSerializer

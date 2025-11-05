@@ -51,7 +51,7 @@ function Salon() {
       }
     };
     cargarMesas(); // Ejecuta la carga
-  }, []); // El array vacío [] significa que se ejecuta solo una vez, al montar
+  }, []); // 
 
   // 3. Función para manejar el logout
   const handleLogout = () => {
@@ -105,7 +105,7 @@ function Salon() {
         </div>
         <hr />
         <p>No hay mesas disponibles o registradas.</p>
-        {/* Aquí podrías añadir un botón para crear mesas si fuera rol Admin/Gerente */}
+        {/* Aquí  añadir un botón para crear mesas si fuera rol Admin/Gerente */}
       </div>
     );
   }

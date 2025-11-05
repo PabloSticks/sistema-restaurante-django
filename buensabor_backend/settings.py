@@ -151,5 +151,26 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
-    # ... (otras configuraciones de DRF) ...
 }
+
+DJANGO_EVENTSTREAM = {
+    'JWT_AUTH': True,  # Habilita la autenticación por JWT
+    'JWT_SECRET': SECRET_KEY, # Usa la MISMA clave secreta que SIMPLE_JWT
+    'JWT_ALGORITHM': 'HS256'  # Usa el MISMO algoritmo que SIMPLE_JWT
+}
+
+# --- CONFIGURACIÓN DE CACHÉ PARA DJANGO_EVENTSTREAM ---
+# Django-Eventstream requiere que se defina la variable CACHES
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-in-memory-cache',
+    },
+    'eventstream': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'eventstream-in-memory-cache',
+    }
+}
+
+# La variable EVENTSTREAM_REDIS es opcional si definiste una caché
+# llamada 'eventstream', como hicimos arriba.
