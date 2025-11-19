@@ -13,9 +13,9 @@ function Salon() {
   }
 
   const navigate = useNavigate(); // Hook para navegar
-  const [mesas, setMesas] = useState(null); // Empezamos con null para diferenciar carga inicial de vacío
+  const [mesas, setMesas] = useState(null); 
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(true); // Empieza cargando
+  const [isLoading, setIsLoading] = useState(true); 
 
   // 2. Efecto para cargar las mesas al montar el componente
   useEffect(() => {
@@ -38,33 +38,33 @@ function Salon() {
           // Si la API no devuelve una lista, muestra un error
           console.error("Salon: La API no devolvió un array para mesas:", data);
           setError('Respuesta inesperada del servidor al cargar mesas.');
-          setMesas([]); // Pone un array vacío para evitar errores de .map
+          setMesas([]); 
         }
       } catch (err) {
         // Si fetchAPI lanza un error (red, 40x, 50x)
         console.error("Salon: Error DENTRO de cargarMesas catch:", err);
         setError(`Error al cargar mesas: ${err.message || 'Error desconocido'}`);
-        setMesas([]); // Pone un array vacío en caso de error
+        setMesas([]); 
       } finally {
-        setIsLoading(false); // Marca como finalizada la carga (con éxito o error)
+        setIsLoading(false); 
         console.log("Salon: Carga de mesas finalizada.");
       }
     };
-    cargarMesas(); // Ejecuta la carga
-  }, []); // 
+    cargarMesas(); 
+  }, []); 
 
   // 3. Función para manejar el logout
   const handleLogout = () => {
     console.log("Salon: Cerrando sesión...");
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    navigate('/login'); // Redirige a la página de login
+    navigate('/login'); 
   };
 
   // 4. Función para navegar a la vista de una mesa específica
   const handleMesaClick = (mesaId) => {
     console.log(`Salon: Navegando a mesa ${mesaId}`);
-    navigate(`/mesa/${mesaId}`); // Usa react-router para cambiar de "página"
+    navigate(`/mesa/${mesaId}`); 
   };
 
   // --- RENDERIZADO DEL COMPONENTE ---
@@ -112,7 +112,6 @@ function Salon() {
 
   // Renderizado principal: Muestra la grilla de mesas
   return (
-    // No usamos div.container aquí si App.jsx ya lo provee
     <div>
       <div id="main-content"> {/* Mantenemos IDs si el CSS los usa */}
         <div className="header">
@@ -124,7 +123,7 @@ function Salon() {
           {/* Mapea sobre el array de mesas para crear cada tarjeta */}
           {mesas.map((mesa) => (
             <div
-              key={mesa.id} // Key única para React
+              key={mesa.id}
               className="mesa" // Clase para estilos CSS
               onClick={() => handleMesaClick(mesa.id)} // Llama a la navegación al hacer clic
               title={`Ir a gestionar Mesa ${mesa.numero}`} // Ayuda visual
